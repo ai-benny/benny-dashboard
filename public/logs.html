@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Logs · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .log-wrap {
+      background: #020817; border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; height: calc(100vh - 200px); overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7;
+    }
+    .log-line { display: flex; gap: 12px; padding: 1px 0; }
+    .log-line:hover { background: rgba(255,255,255,0.02); }
+    .log-ts { color: #334155; white-space: nowrap; flex-shrink: 0; }
+    .log-text { word-break: break-all; }
+    .log-text.error { color: #fca5a5; }
+    .log-text.warn { color: var(--yellow); }
+    .log-text.ok, .log-text.info { color: #86efac; }
+    .log-text.normal { color: #94a3b8; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-dot.live { background: var(--green); animation: pulse 1.5s infinite; }
+    .status-dot.off { background: var(--red); }
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/kanban.html"><span class="icon">🎯</span> Kanban</a>
+    <a href="/logs.html" class="active"><span class="icon">📡</span> Live Logs</a>
+    <a href="/chat.html"><span class="icon">💬</span> Agent Chat</a>
+    <a href="/github.html"><span class="icon">🐙</span> GitHub</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.1 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div class="page-title">📡 Live Gateway Logs</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span id="conn-status"><span class="status-dot off"></span> Verbinden…</span>
+      <button class="btn btn-ghost" onclick="clearLogs()">🗑 Clear</button>
+      <button class="btn btn-ghost" id="scroll-btn" onclick="toggleAutoScroll()">⬇ Auto-scroll: AAN</button>
+    </div>
+  </div>
+  <div class="page-sub">Real-time stream van OpenClaw gateway logs. Alles wat Benny doet, zie je hier live.</div>
+
+  <div class="filter-bar">
+    <span style="color:var(--muted);font-size:12px">Filter:</span>
+    <button class="btn btn-ghost" onclick="setFilter('all',this)" style="opacity:1" data-filter="all">Alles</button>
+    <button class="btn btn-ghost" onclick="setFilter('error',this)" data-filter="error">Errors</button>
+    <button class="btn btn-ghost" onclick="setFilter('cron',this)" data-filter="cron">Cron</button>
+    <button class="btn btn-ghost" onclick="setFilter('agent',this)" data-filter="agent">Agent</button>
+    <input id="search" type="text" placeholder="Zoeken…" oninput="renderFiltered()"
+      style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:13px;outline:none;width:200px">
+  </div>
+
+  <div class="log-wrap" id="log-wrap"></div>
+</main>
+
+<script>
+let logs = [];
+let autoScroll = true;
+let activeFilter = 'all';
+let es = null;
+
+function connect() {
+  if (es) es.close();
+  es = new EventSource('/api/logs/stream');
+
+  es.onopen = () => {
+    document.getElementById('conn-status').innerHTML = '<span class="status-dot live"></span> Live';
+  };
+
+  es.onmessage = (e) => {
+    try {
+      const { line, ts } = JSON.parse(e.data);
+      logs.push({ line, ts: ts || Date.now() });
+      if (logs.length > 2000) logs.shift();
+      appendLine({ line, ts: ts || Date.now() });
+    } catch {}
+  };
+
+  es.onerror = () => {
+    document.getElementById('conn-status').innerHTML = '<span class="status-dot off"></span> Verbinding verbroken';
+    setTimeout(connect, 3000);
+  };
+}
+
+function classify(line) {
+  const l = line.toLowerCase();
+  if (l.includes('error') || l.includes('fail') || l.includes('❌')) return 'error';
+  if (l.includes('warn') || l.includes('⚠️')) return 'warn';
+  if (l.includes('✅') || l.includes('ok') || l.includes('success')) return 'ok';
+  if (l.includes('cron') || l.includes('agent') || l.includes('session')) return 'info';
+  return 'normal';
+}
+
+function appendLine({ line, ts }) {
+  const wrap = document.getElementById('log-wrap');
+  const search = document.getElementById('search').value.toLowerCase();
+
+  if (activeFilter !== 'all') {
+    const cls = classify(line);
+    if (activeFilter === 'error' && cls !== 'error') return;
+    if (activeFilter === 'cron' && !line.toLowerCase().includes('cron')) return;
+    if (activeFilter === 'agent' && !line.toLowerCase().includes('agent') && !line.toLowerCase().includes('session')) return;
+  }
+  if (search && !line.toLowerCase().includes(search)) return;
+
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  const time = new Date(ts).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const cls = classify(line);
+  div.innerHTML = `<span class="log-ts">${time}</span><span class="log-text ${cls}">${escHtml(line)}</span>`;
+  wrap.appendChild(div);
+
+  if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function renderFiltered() {
+  const wrap = document.getElementById('log-wrap');
+  wrap.innerHTML = '';
+  const search = document.getElementById('search').value.toLowerCase();
+  for (const entry of logs) {
+    if (activeFilter !== 'all') {
+      const cls = classify(entry.line);
+      if (activeFilter === 'error' && cls !== 'error') continue;
+      if (activeFilter === 'cron' && !entry.line.toLowerCase().includes('cron')) continue;
+      if (activeFilter === 'agent' && !entry.line.toLowerCase().includes('agent')) continue;
+    }
+    if (search && !entry.line.toLowerCase().includes(search)) continue;
+    appendLine(entry);
+  }
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('[data-filter]').forEach(b => b.style.opacity = '0.5');
+  btn.style.opacity = '1';
+  renderFiltered();
+}
+
+function clearLogs() { logs = []; document.getElementById('log-wrap').innerHTML = ''; }
+
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  document.getElementById('scroll-btn').textContent = `⬇ Auto-scroll: ${autoScroll ? 'AAN' : 'UIT'}`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+connect();
+</script>
+</body>
+</html>

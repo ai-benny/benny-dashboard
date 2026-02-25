@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .kanban { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
+    .kanban-col { flex-shrink: 0; width: 280px; }
+    .kanban-col-header {
+      padding: 10px 14px; border-radius: 10px 10px 0 0;
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .kanban-col-body {
+      background: #111827; border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 10px 10px; min-height: 200px; padding: 8px;
+    }
+    .kanban-col-body.drag-over { background: rgba(124,58,237,0.1); border-color: var(--accent); }
+    .kanban-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; margin-bottom: 8px; cursor: grab; transition: all 0.15s;
+      user-select: none;
+    }
+    .kanban-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .kanban-card.dragging { opacity: 0.4; cursor: grabbing; }
+    .kanban-card-title { font-size: 13px; font-weight: 600; line-height: 1.4; margin-bottom: 10px; }
+    .kanban-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .kanban-card-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .card-btn {
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: none; transition: all 0.15s;
+    }
+    .card-btn-purple { background: rgba(124,58,237,0.2); color: var(--accent2); }
+    .card-btn-purple:hover { background: var(--accent); color: white; }
+    .card-btn-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .card-btn-green:hover { background: var(--green); color: white; }
+    .card-btn-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .card-btn-blue:hover { background: var(--blue); color: white; }
+    .script-box {
+      margin-top: 10px; background: #0a1628; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; font-size: 12px; line-height: 1.6;
+      color: var(--muted); white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+    }
+    .generating { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .col-backlog .kanban-col-header { background: rgba(148,163,184,0.1); color: var(--muted); }
+    .col-draft .kanban-col-header { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .col-planning .kanban-col-header { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .col-posted .kanban-col-header { background: rgba(34,197,94,0.15); color: var(--green); }
+    .speaking { animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/kanban.html" class="active"><span class="icon">🎯</span> Kanban</a>
+    <a href="/logs.html"><span class="icon">📡</span> Live Logs</a>
+    <a href="/chat.html"><span class="icon">💬</span> Agent Chat</a>
+    <a href="/github.html"><span class="icon">🐙</span> GitHub</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.1 · localhost:3000</div>
+</nav>
+
+<main class="main" style="max-width:100%">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div class="page-title">🎯 LinkedIn Kanban</div>
+    <button class="btn btn-ghost" onclick="loadData()">↺ Vernieuwen</button>
+  </div>
+  <div class="page-sub">Sleep ideeën tussen kolommen — direct gesynchet met Notion. Klik ▶ om voor te lezen, ✨ voor een script.</div>
+
+  <div class="kanban" id="kanban">
+    <div class="loading"><span class="loader"></span> Laden…</div>
+  </div>
+</main>
+
+<script>
+const STATUSES = [
+  { key: 'Backlog', label: 'Backlog', cls: 'col-backlog', count: 0 },
+  { key: 'Draft', label: 'Draft', cls: 'col-draft', count: 0 },
+  { key: 'Planning', label: 'Planning', cls: 'col-planning', count: 0 },
+  { key: 'Posted', label: '✅ Posted', cls: 'col-posted', count: 0 }
+];
+
+let allItems = [];
+let draggedId = null;
+let synth = window.speechSynthesis;
+let currentUtterance = null;
+
+async function loadData() {
+  const r = await fetch('/api/notion/linkedin');
+  const d = await r.json();
+  allItems = d.items || [];
+  renderKanban();
+}
+
+function renderKanban() {
+  const board = document.getElementById('kanban');
+  board.innerHTML = STATUSES.map(s => {
+    const items = allItems.filter(it => it.status === s.key);
+    return `
+      <div class="kanban-col ${s.cls}">
+        <div class="kanban-col-header">
+          <span>${s.label}</span>
+          <span style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:20px;font-size:11px">${items.length}</span>
+        </div>
+        <div class="kanban-col-body" id="col-${s.key}"
+          ondragover="onDragOver(event,'${s.key}')"
+          ondragleave="onDragLeave(event)"
+          ondrop="onDrop(event,'${s.key}')">
+          ${items.map(it => renderCard(it)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCard(it) {
+  const typeBadge = it.type === 'video' ? 'badge-yellow' : it.type === 'text' ? 'badge-green' : 'badge-gray';
+  const hasScript = it.script && it.script.length > 10;
+  return `<div class="kanban-card" id="card-${it.id}" draggable="true"
+      ondragstart="onDragStart(event,'${it.id}')"
+      ondragend="onDragEnd(event)">
+    <div class="kanban-card-title">${it.name}</div>
+    <div class="kanban-card-meta">
+      <span class="badge ${typeBadge}">${it.type || '—'}</span>
+      ${it.date ? `<span style="font-size:11px;color:var(--muted)">${it.date}</span>` : ''}
+    </div>
+    <div class="kanban-card-actions">
+      <button class="card-btn card-btn-purple" onclick="generateScript('${it.id}','${it.name.replace(/'/g,"\\'")}','${it.type}')">✨ Script</button>
+      ${hasScript ? `<button class="card-btn card-btn-green" onclick="speak('${it.id}')">▶ Voorlezen</button>` : ''}
+      <button class="card-btn card-btn-blue" onclick="stopSpeak()" style="display:none" id="stop-${it.id}">⏹ Stop</button>
+    </div>
+    ${hasScript ? `<div class="script-box" id="script-${it.id}">${it.script}</div>` : `<div id="script-${it.id}"></div>`}
+  </div>`;
+}
+
+function onDragStart(e, id) {
+  draggedId = id;
+  document.getElementById(`card-${id}`)?.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragEnd(e) {
+  if (draggedId) document.getElementById(`card-${draggedId}`)?.classList.remove('dragging');
+}
+
+function onDragOver(e, status) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+async function onDrop(e, newStatus) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!draggedId) return;
+
+  const item = allItems.find(it => it.id === draggedId);
+  if (!item || item.status === newStatus) return;
+
+  // Optimistic update
+  item.status = newStatus;
+  renderKanban();
+
+  // Sync to Notion
+  const r = await fetch(`/api/notion/linkedin/${draggedId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus })
+  });
+  if (!r.ok) {
+    alert('⚠️ Notion sync mislukt');
+    loadData();
+  }
+  draggedId = null;
+}
+
+async function generateScript(id, title, type) {
+  const scriptEl = document.getElementById(`script-${id}`);
+  scriptEl.innerHTML = '<div class="generating"><span class="loader"></span> Script genereren…</div>';
+
+  const r = await fetch(`/api/notion/linkedin/${id}/generate-script`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, type })
+  });
+  const d = await r.json();
+
+  if (d.ok) {
+    const item = allItems.find(it => it.id === id);
+    if (item) { item.script = d.script; item.status = 'Draft'; }
+    renderKanban();
+    // Auto-scroll to the card
+    setTimeout(() => document.getElementById(`card-${id}`)?.scrollIntoView({ behavior: 'smooth' }), 100);
+  } else {
+    scriptEl.innerHTML = `<div style="color:var(--red);font-size:12px">❌ ${d.error}</div>`;
+  }
+}
+
+function speak(id) {
+  const item = allItems.find(it => it.id === id);
+  if (!item?.script) return;
+
+  if (currentUtterance) { synth.cancel(); currentUtterance = null; }
+
+  const utterance = new SpeechSynthesisUtterance(item.script);
+  utterance.lang = 'nl-NL';
+  utterance.rate = 0.95;
+
+  // Try to find Dutch voice
+  const voices = synth.getVoices();
+  const nlVoice = voices.find(v => v.lang.startsWith('nl')) || voices.find(v => v.lang.startsWith('en'));
+  if (nlVoice) utterance.voice = nlVoice;
+
+  const stopBtn = document.getElementById(`stop-${id}`);
+  const playBtns = document.querySelectorAll(`#card-${id} .card-btn-green`);
+
+  currentUtterance = utterance;
+  if (stopBtn) stopBtn.style.display = 'inline-flex';
+  playBtns.forEach(b => b.classList.add('speaking'));
+
+  utterance.onend = () => {
+    currentUtterance = null;
+    if (stopBtn) stopBtn.style.display = 'none';
+    playBtns.forEach(b => b.classList.remove('speaking'));
+  };
+
+  synth.speak(utterance);
+}
+
+function stopSpeak() {
+  synth.cancel();
+  currentUtterance = null;
+  document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
+  document.querySelectorAll('[id^="stop-"]').forEach(el => el.style.display = 'none');
+}
+
+loadData();
+</script>
+</body>
+</html>

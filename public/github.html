@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/kanban.html"><span class="icon">🎯</span> Kanban</a>
+    <a href="/logs.html"><span class="icon">📡</span> Live Logs</a>
+    <a href="/chat.html"><span class="icon">💬</span> Agent Chat</a>
+    <a href="/github.html" class="active"><span class="icon">🐙</span> GitHub</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.1 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div class="page-title">🐙 GitHub</div>
+    <button class="btn btn-ghost" onclick="loadAll()">↺ Vernieuwen</button>
+  </div>
+  <div class="page-sub">Repositories en recente CI runs van ai-benny.</div>
+
+  <div class="grid-2" style="margin-bottom:0">
+    <div>
+      <div class="card">
+        <div class="card-title">Repositories</div>
+        <div id="repos"><div class="loading"><span class="loader"></span> Laden…</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title">CI Runs</div>
+        <div id="runs"><div class="loading"><span class="loader"></span> Laden…</div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'zojuist';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}u`;
+  return `${Math.floor(h/24)}d`;
+}
+
+async function loadRepos() {
+  const r = await fetch('/api/github/repos');
+  const repos = await r.json();
+  if (!Array.isArray(repos) || !repos.length) {
+    document.getElementById('repos').innerHTML = '<p style="color:var(--muted)">Geen repos gevonden.</p>';
+    return;
+  }
+  document.getElementById('repos').innerHTML = repos.map(repo => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <a href="${repo.url}" target="_blank" style="color:var(--accent2);text-decoration:none;font-weight:600;font-size:13px">
+          ${repo.isPrivate ? '🔒' : '📂'} ${repo.name}
+        </a>
+        ${repo.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${repo.description}</div>` : ''}
+      </div>
+      <span style="color:var(--muted);font-size:11px;flex-shrink:0;margin-left:10px">${timeAgo(repo.updatedAt)}</span>
+    </div>
+  `).join('');
+}
+
+async function loadRuns() {
+  const r = await fetch('/api/github/runs');
+  const runs = await r.json();
+  if (!Array.isArray(runs) || !runs.length) {
+    document.getElementById('runs').innerHTML = '<p style="color:var(--muted)">Geen CI runs gevonden.</p>';
+    return;
+  }
+  document.getElementById('runs').innerHTML = runs.map(run => {
+    const conclusion = run.conclusion || run.status;
+    const badge = conclusion === 'success' ? 'badge-green' : conclusion === 'failure' ? 'badge-red' : conclusion === 'in_progress' ? 'badge-blue' : 'badge-gray';
+    return `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <a href="${run.url}" target="_blank" style="color:var(--text);text-decoration:none;font-size:13px;font-weight:500">
+              ${run.displayTitle || run.workflowName}
+            </a>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${run.workflowName || ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span class="badge ${badge}">${conclusion || 'pending'}</span>
+            <span style="color:var(--muted);font-size:11px">${timeAgo(run.createdAt)}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function loadAll() { loadRepos(); loadRuns(); }
+loadAll();
+</script>
+</body>
+</html>
