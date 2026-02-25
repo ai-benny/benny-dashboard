@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html" class="active"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div class="page-title">🧩 Memory</div>
+  <div class="page-sub">Dagelijkse notities en contextbestanden van Benny.</div>
+
+  <div class="file-layout">
+    <div class="file-list" id="file-list">
+      <div class="loading"><span class="loader"></span></div>
+    </div>
+    <div class="file-content">
+      <div class="card" id="file-viewer">
+        <p style="color:var(--muted)">Selecteer een bestand links.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+async function loadFileList() {
+  const r = await fetch('/api/memory');
+  const d = await r.json();
+  const list = document.getElementById('file-list');
+  if (!d.files.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px">Geen memory bestanden</p>';
+    return;
+  }
+  list.innerHTML = d.files.map(f => `<a onclick="loadFile('${f}')" id="fl-${f}">${f}</a>`).join('');
+}
+
+async function loadFile(name) {
+  document.querySelectorAll('.file-list a').forEach(a => a.classList.remove('active'));
+  const el = document.getElementById(`fl-${name}`);
+  if (el) el.classList.add('active');
+
+  const viewer = document.getElementById('file-viewer');
+  viewer.innerHTML = '<div class="loading"><span class="loader"></span> Laden…</div>';
+
+  const r = await fetch(`/api/memory/${name}`);
+  if (!r.ok) { viewer.innerHTML = '<p style="color:var(--muted)">Niet gevonden.</p>'; return; }
+  const d = await r.json();
+
+  if (name.endsWith('.json')) {
+    viewer.innerHTML = `<strong>${name}</strong><pre style="margin-top:12px">${JSON.stringify(JSON.parse(d.content), null, 2)}</pre>`;
+  } else {
+    viewer.innerHTML = `
+      <strong style="font-size:15px">${name}</strong>
+      <div class="md-content" style="margin-top:14px">${marked.parse(d.content)}</div>
+    `;
+  }
+}
+
+loadFileList();
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cron Jobs · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html" class="active"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div class="page-title">⏰ Cron Jobs</div>
+    <button class="btn btn-ghost" onclick="loadCrons()">↺ Vernieuwen</button>
+  </div>
+  <div class="page-sub">Alle geplande taken — tijdzone: Asia/Singapore</div>
+
+  <div id="crons-container"><div class="loading"><span class="loader"></span> Laden…</div></div>
+</main>
+
+<script>
+function fmtDate(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('nl-NL', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function timeAgo(ms) {
+  if (!ms) return '—';
+  const diff = Date.now() - ms;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'zojuist';
+  if (m < 60) return `${m}m geleden`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}u geleden`;
+  return `${Math.floor(h / 24)}d geleden`;
+}
+
+async function loadCrons() {
+  const container = document.getElementById('crons-container');
+  container.innerHTML = '<div class="loading"><span class="loader"></span> Laden…</div>';
+
+  const r = await fetch('/api/crons');
+  const d = await r.json();
+  const jobs = d.jobs || [];
+
+  if (!jobs.length) {
+    container.innerHTML = '<div class="card"><p style="color:var(--muted)">Geen cron jobs gevonden.</p></div>';
+    return;
+  }
+
+  container.innerHTML = jobs.map(j => {
+    const status = j.state?.lastStatus;
+    const badge = status === 'ok' ? 'badge-green' : status === 'error' ? 'badge-red' : 'badge-gray';
+    const enabled = j.enabled;
+    const model = j.payload?.model || 'default';
+    const msg = j.payload?.message || '';
+    const preview = msg.length > 120 ? msg.slice(0, 120) + '…' : msg;
+
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <strong style="font-size:15px">${j.name}</strong>
+            ${enabled ? '<span class="badge badge-green">enabled</span>' : '<span class="badge badge-gray">disabled</span>'}
+            ${status ? `<span class="badge ${badge}">${status}</span>` : ''}
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px">
+            <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px">SCHEMA</div>
+              <code style="font-size:12px">${j.schedule?.expr || '—'}</code>
+              ${j.schedule?.tz ? `<span style="color:var(--muted);font-size:11px;margin-left:4px">${j.schedule.tz}</span>` : ''}
+            </div>
+            <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px">LAATSTE RUN</div>
+              <span style="font-size:13px">${timeAgo(j.state?.lastRunAtMs)}</span>
+              <div style="font-size:11px;color:var(--muted)">${fmtDate(j.state?.lastRunAtMs)}</div>
+            </div>
+            <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px">VOLGENDE RUN</div>
+              <span style="font-size:13px">${fmtDate(j.state?.nextRunAtMs)}</span>
+            </div>
+            <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px">MODEL</div>
+              <span class="badge badge-purple">${model}</span>
+            </div>
+          </div>
+
+          ${j.state?.lastError ? `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:8px 12px;font-size:12px;color:#fca5a5;margin-bottom:10px">⚠️ ${j.state.lastError}</div>` : ''}
+
+          <details style="margin-top:4px">
+            <summary style="cursor:pointer;font-size:12px;color:var(--muted);user-select:none">Taak prompt</summary>
+            <div style="margin-top:8px;font-size:12px;color:var(--muted);background:#0a1628;border-radius:6px;padding:10px;line-height:1.6">${preview}</div>
+          </details>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+loadCrons();
+</script>
+</body>
+</html>

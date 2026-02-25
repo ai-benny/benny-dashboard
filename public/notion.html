@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Planner · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html" class="active"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div class="page-title">📋 LinkedIn Planner</div>
+    <button class="btn btn-ghost" onclick="loadData()">↺ Vernieuwen</button>
+  </div>
+  <div class="page-sub">Content ideeën gegenereerd door Benny — dagelijks om 11:00 bijgewerkt.</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:20px" id="filter-bar">
+    <button class="btn btn-ghost active-filter" data-filter="all" onclick="setFilter('all',this)">Alles</button>
+    <button class="btn btn-ghost" data-filter="video" onclick="setFilter('video',this)">🎬 Video</button>
+    <button class="btn btn-ghost" data-filter="text" onclick="setFilter('text',this)">📝 Text</button>
+    <button class="btn btn-ghost" data-filter="Backlog" onclick="setFilter('Backlog',this)">Backlog</button>
+    <button class="btn btn-ghost" data-filter="Draft" onclick="setFilter('Draft',this)">Draft</button>
+    <button class="btn btn-ghost" data-filter="Posted" onclick="setFilter('Posted',this)">Posted</button>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Idee / Titel</th>
+            <th>Status</th>
+            <th>Datum</th>
+            <th>Script</th>
+          </tr>
+        </thead>
+        <tbody id="notion-body">
+          <tr><td colspan="5"><div class="loading"><span class="loader"></span> Laden…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+let allItems = [];
+let activeFilter = 'all';
+
+async function loadData() {
+  const tbody = document.getElementById('notion-body');
+  tbody.innerHTML = '<tr><td colspan="5"><div class="loading"><span class="loader"></span> Laden…</div></td></tr>';
+
+  const r = await fetch('/api/notion/linkedin');
+  const d = await r.json();
+  allItems = d.items || [];
+  renderTable();
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('[data-filter]').forEach(b => b.style.opacity = '0.5');
+  btn.style.opacity = '1';
+  renderTable();
+}
+
+function renderTable() {
+  const items = allItems.filter(it => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'video' || activeFilter === 'text') return it.type === activeFilter;
+    return it.status === activeFilter;
+  });
+
+  const tbody = document.getElementById('notion-body');
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--muted);padding:20px">Geen items voor dit filter.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(it => {
+    const typeBadge = it.type === 'video' ? 'badge-yellow' : it.type === 'text' ? 'badge-green' : 'badge-gray';
+    const statusBadge = it.status === 'Posted' ? 'badge-green' : it.status === 'Planning' ? 'badge-blue' : it.status === 'Draft' ? 'badge-yellow' : 'badge-gray';
+    const script = it.script ? `<details><summary style="cursor:pointer;font-size:11px;color:var(--muted)">Toon script</summary><div style="margin-top:6px;font-size:12px;color:var(--muted);white-space:pre-wrap;line-height:1.6">${it.script}</div></details>` : '<span style="color:var(--muted);font-size:12px">—</span>';
+
+    return `<tr>
+      <td><span class="badge ${typeBadge}">${it.type || '—'}</span></td>
+      <td style="max-width:400px"><strong>${it.name}</strong></td>
+      <td><span class="badge ${statusBadge}">${it.status || '—'}</span></td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${it.date || '—'}</td>
+      <td>${script}</td>
+    </tr>`;
+  }).join('');
+}
+
+loadData();
+</script>
+</body>
+</html>

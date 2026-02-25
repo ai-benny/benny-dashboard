@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flowcharts · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html" class="active"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div class="page-title">🗺️ Flowcharts</div>
+  <div class="page-sub">Visuele overzichten van systemen en projecten.</div>
+
+  <div class="card">
+    <div class="card-title">OpenClaw Architectuur</div>
+    <div class="mermaid">
+graph TD
+    Bas([👤 Bas]) -->|Telegram| TG[📱 Telegram Channel]
+    TG --> GW[🦞 OpenClaw Gateway]
+    GW --> AG[🧠 Benny Agent]
+    AG --> MEM[📂 Workspace Files\nSOUL · USER · MEMORY]
+    AG --> TOOLS[🔧 Tools\nexec · web_search · browser]
+    AG --> MSG[💬 message tool]
+    MSG -->|reply| TG
+    GW --> CRON[⏰ Cron Scheduler]
+    CRON --> C1[📋 LinkedIn Ideeën\n11:00 dagelijks]
+    CRON --> C2[🌅 Morning Brief\n08:00 dagelijks]
+    CRON --> C3[💊 Creatine\n21:00 dagelijks]
+    AG --> NOTION[📓 Notion API]
+    AG --> GH[🐙 GitHub CLI]
+    AG --> MEMORY[🧩 Memory Files\ndaily logs]
+
+    style GW fill:#7c3aed,color:#fff
+    style AG fill:#1e293b,color:#a78bfa
+    style CRON fill:#1e3a5f,color:#60a5fa
+    style MEM fill:#1e293b,color:#94a3b8
+    style NOTION fill:#1e3a2f,color:#4ade80
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bas's Projecten Overzicht</div>
+    <div class="mermaid">
+graph LR
+    BAS([💡 Bas]) --> CLIENT[Client Work\nStabiele inkomsten]
+    BAS --> OWN[Eigen Projecten\nSchaalvermogen]
+
+    CLIENT --> OOAK[🏪 OOAK Advisory\ne-commerce community]
+    CLIENT --> DN[🏛️ Digital Notary\nBV oprichten platform]
+    CLIENT --> PG[🛒 De Projectgroep\nWebshop]
+
+    OWN --> KIDORY[👶 Kidory\nOpvoedingsapp]
+    OWN --> LUMIO[🛍️ Lumio Pop-ups\nShopify app]
+    OWN --> SEO[🤖 SEO Automation\nAI websites + affiliate]
+
+    STACK[Tech Stack\nLovable · Supabase\nN8n · Make.com\nResend] -.->|powers| CLIENT
+    STACK -.->|powers| OWN
+
+    style BAS fill:#7c3aed,color:#fff
+    style CLIENT fill:#1e3a5f,color:#60a5fa
+    style OWN fill:#1e3a2f,color:#4ade80
+    style STACK fill:#1e293b,color:#94a3b8
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">LinkedIn Content Flow</div>
+    <div class="mermaid">
+sequenceDiagram
+    participant B as ⏰ Cron 11:00
+    participant A as 🧠 Benny
+    participant W as 🌐 Web/Reddit
+    participant N as 📓 Notion
+    participant T as 📱 Telegram
+
+    B->>A: Trigger dagelijkse ideeën
+    A->>W: Zoek trending topics
+    W-->>A: Reddit + LinkedIn trends
+    A->>A: Genereer 4 ideeën (2x video + 2x text)
+    A->>N: Voeg toe aan LinkedIn Planner
+    A->>T: Stuur samenvatting naar Bas
+    T-->>A: "Werk idee X uit"
+    A->>N: Schrijf volledig script
+    A->>T: Script klaar
+    </div>
+  </div>
+</main>
+
+<script>
+mermaid.initialize({
+  theme: 'dark',
+  themeVariables: {
+    background: '#0f172a',
+    primaryColor: '#1e293b',
+    primaryTextColor: '#e2e8f0',
+    primaryBorderColor: '#334155',
+    lineColor: '#7c3aed',
+    secondaryColor: '#1e293b',
+    tertiaryColor: '#0f172a'
+  }
+});
+</script>
+</body>
+</html>

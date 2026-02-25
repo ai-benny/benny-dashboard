@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="title">🧠 Benny</div>
+    <div class="sub">OpenClaw Dashboard</div>
+  </div>
+  <div class="sidebar-nav">
+    <a href="/" class="active"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div class="page-title">Dashboard</div>
+  <div class="page-sub">Welkom, Bas. Hier is je overzicht.</div>
+
+  <div class="grid-3" id="stats">
+    <div class="stat-card"><div class="stat-value" id="stat-crons">—</div><div class="stat-label">Actieve cron jobs</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-errors">—</div><div class="stat-label">Cron errors</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-linkedin">—</div><div class="stat-label">LinkedIn ideeën</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🦞 OpenClaw Status</div>
+    <div id="status-out"><div class="loading"><span class="loader"></span> Laden…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⏰ Cron Jobs</div>
+    <div class="table-wrap">
+      <table id="crons-table">
+        <thead><tr><th>Naam</th><th>Schema</th><th>Laatste run</th><th>Volgende run</th><th>Status</th></tr></thead>
+        <tbody id="crons-body"><tr><td colspan="5"><div class="loading"><span class="loader"></span> Laden…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Recente LinkedIn Ideeën</div>
+    <div id="notion-recent"><div class="loading"><span class="loader"></span> Laden…</div></div>
+  </div>
+</main>
+
+<script>
+function fmtDate(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('nl-NL', { timeZone: 'Asia/Singapore', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+async function loadStatus() {
+  const r = await fetch('/api/status');
+  const d = await r.json();
+  document.getElementById('status-out').innerHTML = `<pre>${d.output}</pre>`;
+}
+
+async function loadCrons() {
+  const r = await fetch('/api/crons');
+  const d = await r.json();
+  const jobs = d.jobs || [];
+  document.getElementById('stat-crons').textContent = jobs.filter(j => j.enabled).length;
+  document.getElementById('stat-errors').textContent = jobs.filter(j => j.state?.lastStatus === 'error').length;
+
+  const tbody = document.getElementById('crons-body');
+  if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:20px">Geen cron jobs</td></tr>'; return; }
+
+  tbody.innerHTML = jobs.map(j => {
+    const status = j.state?.lastStatus;
+    const badge = status === 'ok' ? 'badge-green' : status === 'error' ? 'badge-red' : 'badge-gray';
+    const label = status || 'nooit';
+    const sched = j.schedule?.expr || '—';
+    const tz = j.schedule?.tz ? ` <span style="color:var(--muted);font-size:11px">${j.schedule.tz}</span>` : '';
+    return `<tr>
+      <td><strong>${j.name}</strong></td>
+      <td><code style="font-size:12px">${sched}</code>${tz}</td>
+      <td>${fmtDate(j.state?.lastRunAtMs)}</td>
+      <td>${fmtDate(j.state?.nextRunAtMs)}</td>
+      <td><span class="badge ${badge}">${label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadNotion() {
+  const r = await fetch('/api/notion/linkedin');
+  const d = await r.json();
+  const items = (d.items || []).slice(0, 4);
+  if (!items.length) { document.getElementById('notion-recent').innerHTML = '<p style="color:var(--muted)">Geen items</p>'; return; }
+  document.getElementById('stat-linkedin').textContent = d.items?.length || '—';
+  document.getElementById('notion-recent').innerHTML = items.map(it => {
+    const typeBadge = it.type === 'video' ? 'badge-yellow' : 'badge-green';
+    const statusBadge = it.status === 'Posted' ? 'badge-green' : it.status === 'Planning' ? 'badge-blue' : 'badge-gray';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span class="badge ${typeBadge}">${it.type || '—'}</span>
+      <span style="flex:1">${it.name}</span>
+      <span class="badge ${statusBadge}">${it.status || '—'}</span>
+      <span style="color:var(--muted);font-size:12px">${it.date || ''}</span>
+    </div>`;
+  }).join('');
+}
+
+loadStatus();
+loadCrons();
+loadNotion();
+</script>
+</body>
+</html>

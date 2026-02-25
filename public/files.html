@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Config Files · Benny Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="title">🧠 Benny</div><div class="sub">OpenClaw Dashboard</div></div>
+  <div class="sidebar-nav">
+    <a href="/"><span class="icon">🏠</span> Home</a>
+    <a href="/crons.html"><span class="icon">⏰</span> Cron Jobs</a>
+    <a href="/files.html" class="active"><span class="icon">📝</span> Config Files</a>
+    <a href="/memory.html"><span class="icon">🧩</span> Memory</a>
+    <a href="/notion.html"><span class="icon">📋</span> LinkedIn Planner</a>
+    <a href="/flowcharts.html"><span class="icon">🗺️</span> Flowcharts</a>
+  </div>
+  <div class="sidebar-footer">v1.0 · localhost:3000</div>
+</nav>
+
+<main class="main">
+  <div class="page-title">📝 Config Files</div>
+  <div class="page-sub">Bestanden die Benny's gedrag bepalen. Aanpassingen hier = aanpassingen aan de agent.</div>
+
+  <div class="file-layout">
+    <div class="file-list" id="file-list">
+      <div class="loading"><span class="loader"></span></div>
+    </div>
+    <div class="file-content">
+      <div class="card" id="file-viewer">
+        <p style="color:var(--muted)">Selecteer een bestand links om het te bekijken.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const FILES = ['SOUL.md','USER.md','MEMORY.md','AGENTS.md','HEARTBEAT.md','TOOLS.md','IDENTITY.md'];
+const descriptions = {
+  'SOUL.md': 'Wie Benny is — persoonlijkheid, communicatiestijl, rol',
+  'USER.md': 'Wie Bas is — projecten, doelen, context',
+  'MEMORY.md': 'Langetermijngeheugen — wat Benny onthoudt',
+  'AGENTS.md': 'Sessieregels — wat Benny doet bij elke sessie',
+  'HEARTBEAT.md': 'Periodieke checks — wat Benny proactief doet',
+  'TOOLS.md': 'Lokale notities — camera\'s, SSH, devices',
+  'IDENTITY.md': 'Identiteitskaart — naam, rol, emoji'
+};
+
+let activeFile = null;
+let editMode = false;
+
+async function loadFileList() {
+  const r = await fetch('/api/files');
+  const d = await r.json();
+  const list = document.getElementById('file-list');
+  list.innerHTML = d.files.map(f => `
+    <a onclick="loadFile('${f.name}')" id="fl-${f.name}" style="${!f.exists ? 'opacity:0.4' : ''}">
+      ${f.name}
+      ${!f.exists ? '<span style="font-size:10px;color:var(--muted)"> (leeg)</span>' : ''}
+    </a>
+  `).join('');
+}
+
+async function loadFile(name) {
+  activeFile = name;
+  editMode = false;
+  document.querySelectorAll('.file-list a').forEach(a => a.classList.remove('active'));
+  const el = document.getElementById(`fl-${name}`);
+  if (el) el.classList.add('active');
+
+  const viewer = document.getElementById('file-viewer');
+  viewer.innerHTML = '<div class="loading"><span class="loader"></span> Laden…</div>';
+
+  const r = await fetch(`/api/file/${name}`);
+  if (!r.ok) {
+    viewer.innerHTML = `<p style="color:var(--muted)">Bestand niet gevonden.</p>`;
+    return;
+  }
+  const d = await r.json();
+  renderView(d.name, d.content);
+}
+
+function renderView(name, content) {
+  const desc = descriptions[name] || '';
+  const viewer = document.getElementById('file-viewer');
+  viewer.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <strong style="font-size:15px">${name}</strong>
+        ${desc ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${desc}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="toggleEdit('${name}')">✏️ Bewerken</button>
+      </div>
+    </div>
+    <div class="md-content" id="md-render">${marked.parse(content)}</div>
+    <div id="edit-area-wrap" style="display:none">
+      <textarea class="edit-area" id="edit-textarea">${content.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-primary" onclick="saveFile('${name}')">💾 Opslaan</button>
+        <button class="btn btn-ghost" onclick="cancelEdit()">Annuleren</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleEdit(name) {
+  editMode = !editMode;
+  document.getElementById('md-render').style.display = editMode ? 'none' : 'block';
+  document.getElementById('edit-area-wrap').style.display = editMode ? 'block' : 'none';
+}
+
+function cancelEdit() {
+  editMode = false;
+  document.getElementById('md-render').style.display = 'block';
+  document.getElementById('edit-area-wrap').style.display = 'none';
+}
+
+async function saveFile(name) {
+  const content = document.getElementById('edit-textarea').value;
+  const r = await fetch(`/api/file/${name}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  });
+  const d = await r.json();
+  if (d.ok) {
+    alert(`✅ ${name} opgeslagen! Benny gebruikt dit bij de volgende sessie.`);
+    loadFile(name);
+  } else {
+    alert('❌ Opslaan mislukt: ' + JSON.stringify(d));
+  }
+}
+
+loadFileList();
+</script>
+</body>
+</html>
